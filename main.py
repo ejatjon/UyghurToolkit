@@ -1,8 +1,7 @@
 
+if __name__ == '__main__':
+    uey_test_text = [
 
-def main():
-    print("Hello from uyghur-toolkit!")
+    ]
 
-
-if __name__ == "__main__":
-    main()
+    uel
