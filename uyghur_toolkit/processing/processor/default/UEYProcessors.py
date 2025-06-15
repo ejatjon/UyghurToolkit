@@ -1,4 +1,13 @@
+"""
+该模块包含老维文（UEY）相关的文本处理器，包括：
+- 数字/日期转换处理器
+- 符号转换处理器
+- 音节划分处理器
+- 转换到IPA,ULY,UKY,UYY字母的转换处理器
+等核心处理功能
+"""
 import re
+from typing import Union
 
 from uyghur_toolkit.processing.ProcesClass import ProcesClass
 from uyghur_toolkit.processing.ProcesType import ProcesType
@@ -13,6 +22,11 @@ from uyghur_toolkit.utils.number_tools import decompose_number, decimal_number, 
 
 
 def is_vowel(s: str) -> bool:
+    """
+    判断是否为元音字母（字母）
+    :param s: 字母
+    :return: 布尔值，True为元音
+    """
     if s in UEY_VOWELS:
         return True
     return False
@@ -72,14 +86,25 @@ def number_hyphen_converter(s: str) -> str:
 
 
 def number_hyphen_reverse(text: str):
+    """
+    将字符ىنچى 转换为中划线
+    :param text: 要处理的字符串
+    :return: 处理结果
+    """
+    hyphen_escaped = re.escape(''.join(['\u0649', '\u0646', '\u0686', '\u0649']))
     regex = re.compile(fr'''
     (\S+?)# 匹配非空字符（非贪婪）
-    ({re.escape(''.join(['\u0649', '\u0646', '\u0686', '\u0649']))}) # 后缀 ىنچى
+    ({hyphen_escaped}) # 后缀 ىنچى
     (?=\s|$) # 后边界检查（空格或结尾）
     ''', flags=re.VERBOSE | re.UNICODE | re.DOTALL)
 
     # 定义替换函数
     def replacement(match):
+        """
+        替换处理器
+        :param match: 匹配的match
+        :return: 替换后的结果
+        """
         prefix = match.group(1)
         if prefix in UEY_REVERSE_NUMBER_MAP.keys():
             return ' ' + prefix + ' - '
@@ -92,7 +117,8 @@ def number_hyphen_reverse(text: str):
 
     return regex.sub(replacement, text)
 
-def get_uey_forms(c: str, autofill: bool = True) -> dict[str, str] | dict[str, str] | None:
+
+def get_uey_forms(c: str, autofill: bool = True) -> Union[dict[str, str], None]:
     """
     获取字母形态信息。如果autofill为真，则会按照一定的优先级进行自动填充
     :param autofill: 自动填充缺失的字母形式
@@ -100,7 +126,12 @@ def get_uey_forms(c: str, autofill: bool = True) -> dict[str, str] | dict[str, s
     :return: 字母形态信息
     """
 
-    def get_form(f: dict[str, dict[str, str]]) -> dict[str, str] | None:
+    def get_form(f: dict[str, dict[str, str]]) -> Union[dict[str, str], None]:
+        """
+        获取字母形态信息,他会自动填充或者删除值为空字符的字段
+        :param f: 初始的字母形态信息
+        :return: 处理过的字母形态信息
+        """
         if autofill:
             base = f['UEY']['Base']
             isolated = f['UEY']['Isolated']
@@ -196,6 +227,10 @@ def uey_punctuation_to_other(s: str, target: int) -> str:
 
 
 class UEYNumberProcessor(Processor):
+    """
+    处理 UEY 数字
+    """
+
     def __init__(self, exclude_before: list[str] = None, exclude_after: list[str] = None, add_space: bool = True):
         """
         初始化参数
@@ -203,7 +238,7 @@ class UEYNumberProcessor(Processor):
         :param exclude_after: 数字后缀，有此后缀的数字将被忽略
         :param add_space: 是否在匹配到的数字前后添加空格
         """
-        super().__init__(ProcesClass.UEY, ProcesType.NUMBER,'DefaultUEYNumberProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.NUMBER, 'DefaultUEYNumberProcessor')
         if exclude_before is None:
             self.exclude_before = ['.', '-']
         else:
@@ -237,6 +272,11 @@ class UEYNumberProcessor(Processor):
             re.VERBOSE | re.UNICODE | re.DOTALL)
 
         def replace(match):
+            """
+            替换匹配项
+            :param match: 匹配项
+            :return: 替换后的字符串
+            """
             # 解包捕获组
             prefix_part, number_str, suffix_part = match.groups()
             # 提取实际的前缀和后缀字符（去除断言部分）
@@ -270,6 +310,11 @@ class UEYNumberProcessor(Processor):
             re.VERBOSE | re.UNICODE | re.DOTALL)
 
         def replace(match):
+            """
+            替换匹配项
+            :param match: 匹配项
+            :return: 处理后的字符串
+            """
             # 解包捕获组
             prefix_part, number_str, suffix_part = match.groups()
             # 提取实际的前缀和后缀字符（去除断言部分）
@@ -313,7 +358,9 @@ class UEYNumberReverseProcessor(Processor):
     """
     吧Uyghur 数字转换成阿拉伯数字会有点复杂，以下是详细的处理逻辑(注意 如果出现 以空格分割的数将会出现问题)
     1. 吧Uyghur数字转换成 (数字（int），不是数量级(bool)) 格式的列表，下面称为pending（暂存数字）
-    例如：بىر يۈز يىگىرمە ئۈچ مىڭ توققۇز يۈز ئەللىك بەش(123955) -> [(1, True), (100, False), (20, True), (3, True), (1000, False), (9, True), (100, False), (50, True), (5, True)]
+    例如：
+    بىر يۈز يىگىرمە ئۈچ مىڭ توققۇز يۈز ئەللىك بەش(123955)
+    -> [(1, True), (100, False), (20, True), (3, True), (1000, False), (9, True), (100, False), (50, True), (5, True)]
     2. pending分成几个数量级单调递增的部分
     这里说的数量级说的是为维语中表示数量级的数(维语中的万不常用因此没包含在里面) 如 百 100 千1000 百万100000 ...
     例如：[(1, True), (100, False), (20, True), (3, True), (1000, False), (9, True), (100, False), (50, True), (5, True)]
@@ -338,7 +385,7 @@ class UEYNumberReverseProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.REVERSE | ProcesType.NUMBER,'DefaultUEYNumberReverseProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.REVERSE | ProcesType.NUMBER, 'DefaultUEYNumberReverseProcessor')
 
     def process(self, text):
         text = self.reverse_float(text)
@@ -459,7 +506,7 @@ class UEYNumberReverseProcessor(Processor):
 
 class UEYDateProcessor(Processor):
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.DATE,'DefaultUEYDateProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.DATE, 'DefaultUEYDateProcessor')
         self.date_regex_map = {
             'iso': {  # 格式1：YYYY-MM-DD
                 'regex_year': r'\d{1,4}',
@@ -486,35 +533,56 @@ class UEYDateProcessor(Processor):
 
     def process(self, s: str) -> str:
         def replace_handler(match: re.Match):
+            """
+            处理匹配项
+            :param match: 匹配项
+            :return: 替换结果
+            """
             handle = self.date_regex_map[match.lastgroup].get('handler', self.default_handler)
             year, month, day = handle(match.lastgroup, match)
             year_unit = '\u064a\u0649\u0644\u0649'  # يىلى
             month_unit = '\u0626\u0627\u064a\u0646\u0649\u06ad'  # ئايىڭ
             day_unit = '\u0643\u06c8\u0646\u0649'  # كۈنى
-            return f"{self.convert_date_number(year)} {year_unit} {self.convert_date_number(month)} {month_unit} {self.convert_date_number(day)} {day_unit}"
+            return f"{self.convert_date_number(year)} {year_unit}"\
+                   f" {self.convert_date_number(month)} {month_unit} {self.convert_date_number(day)} {day_unit}"
 
         return self.mk_regex().sub(replace_handler, s)
 
     @staticmethod
     def convert_date_number(s):
+        """
+        把阿拉伯数字转换成维语数字
+        :param s: 要转换的数字
+        :return: 转换结果
+        """
         number = int(s)
         uey_number = int_to_uey(number)
         return number_hyphen_converter(uey_number)
 
-    def mk_regex(self):
+    def mk_regex(self) -> re.Pattern:
+        """
+        创建正则表达式
+        :return: 正则表达式
+        """
         regex_list = []
         for k, v in self.date_regex_map.items():
-            regex_year = rf'(?P<{k}_year>{v['regex_year']})'
-            regex_month = rf'(?P<{k}_month>{v['regex_month']})'
-            regex_day = rf'(?P<{k}_day>{v['regex_day']})'
+            regex_year = rf"(?P<{k}_year>{v['regex_year']})"
+            regex_month = rf"(?P<{k}_month>{v['regex_month']})"
+            regex_day = rf"(?P<{k}_day>{v['regex_day']})"
             regex_separator = v['regex_separator']
-            regex_str = rf'(?P<{k}>{regex_year}{regex_separator}{regex_month}{regex_separator}{regex_day})'
+            regex_str = rf"(?P<{k}>{regex_year}{regex_separator}{regex_month}{regex_separator}{regex_day})"
             regex_list.append(regex_str)
 
-        return re.compile(rf'(?<!\d)(?:{'|'.join(regex_list)})(?!\d)', flags=re.VERBOSE | re.UNICODE | re.DOTALL)
+        return re.compile(rf"(?<!\d)(?:{'|'.join(regex_list)})(?!\d)", flags=re.VERBOSE | re.UNICODE | re.DOTALL)
 
     @staticmethod
     def default_handler(class_name: str, m: re.Match) -> tuple[str, str, str]:
+        """
+        处理匹配项
+        :param class_name: 匹配项的类名
+        :param m: 匹配项
+        :return: 处理结果
+        """
         return m.group(f'{class_name}_year'), m.group(f'{class_name}_month'), m.group(f'{class_name}_day')
 
 
@@ -522,15 +590,32 @@ class UEYDateAndNumberReverseProcessor(Processor):
 
     def __init__(self):
         super().__init__(ProcesClass.UEY,
-                         ProcesType.REVERSE | ProcesType.DATE | ProcesType.NUMBER,'DefaultUEYDateAndNumberReverseProcessor')
+                         ProcesType.REVERSE | ProcesType.DATE | ProcesType.NUMBER,
+                         'DefaultUEYDateAndNumberReverseProcessor')
         self.number_reverse = UEYNumberReverseProcessor()
 
     def process(self, text: str, separators: str = '-'):
-        regex = re.compile(fr'''
-                (\d+)(\s*-\s* {re.escape(''.join(['\u064a', '\u0649', '\u0644', '\u0649']))} \s*)(\d+)(\s*-\s* {re.escape(''.join(['\u0626', '\u0627', '\u064a', '\u0646', '\u0649', '\u06ad']))} \s*)(\d+)(\s*-\s* {re.escape(''.join(['\u0643', '\u06c8', '\u0646', '\u0649']))} \s*)        # year month day        
-                ''', flags=re.VERBOSE | re.UNICODE | re.DOTALL)
+        """
+        日期和数字倒序
+        :param text: 文本
+        :param separators: 分隔符
+        :return: 处理结果
+        """
+        # year month day
+        year_escape = re.escape(''.join(['\u064a', '\u0649', '\u0644', '\u0649']))
+        month_escape = re.escape(''.join(['\u0626', '\u0627', '\u064a', '\u0646', '\u0649', '\u06ad']))
+        day_escape = re.escape(''.join(['\u0643', '\u06c8', '\u0646', '\u0649']))
+        regex = re.compile(fr"(\d+)(\s*-\s* {year_escape} \s*)"
+                           fr"(\d+)(\s*-\s* {month_escape} \s*)"
+                           fr"(\d+)(\s*-\s* {day_escape} \s*)",
+                           flags=re.VERBOSE | re.UNICODE | re.DOTALL)
 
-        def replacement(match):
+        def replacement(match) -> str:
+            """
+            匹配结果处理
+            :param match: 匹配结果
+            :return: 处理结果
+            """
             year_num = match.group(1)
             month_num = match.group(3)
             day_num = match.group(5)
@@ -543,7 +628,7 @@ class UEYDateAndNumberReverseProcessor(Processor):
 
 class UEYNormalizeProcessor(Processor):
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.NORMALIZATION,'DefaultUEYNormalizeProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.NORMALIZATION, 'DefaultUEYNormalizeProcessor')
 
     def process(self, text):
         return uey_to_base(text)
@@ -552,7 +637,8 @@ class UEYNormalizeProcessor(Processor):
 class UEYNormalizeReverseProcessor(Processor):
 
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.REVERSE | ProcesType.NORMALIZATION,'DefaultUEYNormalizeReverseProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.REVERSE | ProcesType.NORMALIZATION,
+                         'DefaultUEYNormalizeReverseProcessor')
 
     def process(self, text: str) -> str:
         """
@@ -638,7 +724,7 @@ class UEYNormalizeReverseProcessor(Processor):
             return c
         return forms.get('Final', '')
 
-    def integrateLetter(self, l: list[str]) -> str:
+    def integrateLetter(self, letter_list: list[str]) -> str:
         """
         判断当前字母应该的形式并返回。
         判断逻辑我自己通过观察和经验得出，逻辑简单可能会有错误。以下是具体规则：
@@ -646,12 +732,12 @@ class UEYNormalizeReverseProcessor(Processor):
         2. 前为空，后不为空。当前字母使用后连式，如果不存在使用简单独立式，也不存在使用独立式
         3. 前不为空，后为空且前一个字母具有双连式或后连式形式。当前字母使用前连式 否则 使用简单独立式（不存在使用独立式）
         4. 前后都不为空且前一个字母具有双连式或后连式形式。当前字母使用双连式，否则使用后连式（诺不存在参考 2 ）
-        :param l: 一个长度为4的字母列表 【上上一个字母，上一个字母，当前字母，下一个字母】
+        :param letter_list: 一个长度为4的字母列表 【上上一个字母，上一个字母，当前字母，下一个字母】
         :return: 当前字母应该的书写形式（字母）
         """
-        prev_letter = l[1].strip()
-        letter = l[2].strip()
-        next_letter = l[3].strip()
+        prev_letter = letter_list[1].strip()
+        letter = letter_list[2].strip()
+        next_letter = letter_list[3].strip()
 
         if prev_letter == '' and next_letter == '':
             return self.getIsolated(letter)
@@ -734,7 +820,7 @@ class UEYNormalizeReverseProcessor(Processor):
 
 class UEYSymbolsProcessor(Processor):
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.SYMBOL,'DefaultUEYSymbolsProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.SYMBOL, 'DefaultUEYSymbolsProcessor')
 
     def process(self, text: str) -> str:
         for k, v in UEY_SYMBOL_MAP.items():
@@ -744,7 +830,7 @@ class UEYSymbolsProcessor(Processor):
 
 class UEYSymbolsReverseProcessor(Processor):
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.SYMBOL | ProcesType.REVERSE,'DefaultUEYSymbolsReverseProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.SYMBOL | ProcesType.REVERSE, 'DefaultUEYSymbolsReverseProcessor')
 
     def process(self, text: str) -> str:
         for k, v in UEY_SYMBOL_MAP.items():
@@ -758,7 +844,7 @@ class UEYToIPAProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.TO_IPA,'DefaultUEYToIPAProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.TO_IPA, 'DefaultUEYToIPAProcessor')
         self.hemze = "\u0626"
 
     def process(self, text: str) -> str:
@@ -788,7 +874,7 @@ class UEYToUKYProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.TO_UKY,'DefaultUEYToUKYProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.TO_UKY, 'DefaultUEYToUKYProcessor')
         self.hemze = "\u0626"
 
     def process(self, text: str) -> str:
@@ -822,7 +908,7 @@ class UEYToULYProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.TO_ULY,'DefaultUEYToULYProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.TO_ULY, 'DefaultUEYToULYProcessor')
         self.divide_syllables = UEYDivideSyllablesProcessor()
         self.hemze = '\u0626'
         self.right_single_quotation_mark = '\u2019'  # (’,\u2019 ) 分割符
@@ -835,6 +921,12 @@ class UEYToULYProcessor(Processor):
         return uey_punctuation_to_other(' '.join(result), 1)
 
     def convertToULY(self, word: str, split_vowels: bool = True):
+        """
+        将UEY字符串转换成ULY字符串。
+        :param word: 要转换的文本
+        :param split_vowels: 是否将元音字母拆分
+        :return: 处理结果
+        """
         word = self.divide_syllables.process(word, split_vowels).replace(self.hemze, '')
         syllables = []
         prev_syllable = ''
@@ -863,6 +955,11 @@ class UEYToULYProcessor(Processor):
         return uly_word
 
     def getULYChar(self, c: str) -> str:
+        """
+        获取 ULY 字母
+        :param c: UEY字母
+        :return: ULY字母
+        """
         forms = UEY_SCRIPTS.get(c, None)
         if forms:
             return forms['ULY']['other']
@@ -876,7 +973,7 @@ class UEYToUYYProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.TO_UYY,'DefaultUEYToUYYProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.TO_UYY, 'DefaultUEYToUYYProcessor')
         self.hemze = "\u0626"
 
     def process(self, text: str) -> str:
@@ -907,7 +1004,7 @@ class UEYDivideSyllablesProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.UEY, ProcesType.SYLLABLES,'DefaultUEYDivideSyllablesProcessor')
+        super().__init__(ProcesClass.UEY, ProcesType.SYLLABLES, 'DefaultUEYDivideSyllablesProcessor')
         self.Hemze = '\u0626'
         self.syllables_form = ['V', 'VC', 'CV', 'CVC', 'VCC', 'CVCC', 'CCV', 'CCVC', 'CCVCC', 'CVV', 'CVVC', 'CCCV']
 
@@ -1017,7 +1114,7 @@ class UEYDivideSyllablesProcessor(Processor):
         # 但是处理一些外来词的音节时会出现问题
         return syllable_list[::-1]
 
-    def iterateSyllable(self, block: str) -> list[str] | None:
+    def iterateSyllable(self, block: str) -> Union[list[str], None]:
         """
         正向遍历并切分音节
         :param block: VC 块
@@ -1031,6 +1128,3 @@ class UEYDivideSyllablesProcessor(Processor):
             if i == block[:len(i)] and self.iterateSyllable(block[len(i):]):
                 return [i] + self.iterateSyllable(block[len(i):])
         return None
-
-
-

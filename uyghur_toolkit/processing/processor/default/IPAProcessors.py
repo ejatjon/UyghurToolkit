@@ -1,5 +1,15 @@
+"""
+该模块包含国际音标(IPA)相关的文本处理器，包括：
+- 数字/日期转换处理器
+- 符号转换处理器
+- 音节划分处理器
+- 转换到UEY,ULY,UKY,UYY字母的转换处理器
+等核心处理功能
+"""
+
 import functools
 import re
+from typing import Union
 
 from uyghur_toolkit.processing.ProcesClass import ProcesClass
 from uyghur_toolkit.processing.ProcesType import ProcesType
@@ -12,6 +22,11 @@ from uyghur_toolkit.utils.number_tools import decompose_number, decimal_number, 
 
 
 def is_vowel(s: str) -> bool:
+    """
+    判断是否为元音字母（字母）
+    :param s: 字母
+    :return: 布尔值，True为元音
+    """
     if s in IPA_VOWELS:
         return True
     return False
@@ -70,7 +85,12 @@ def number_hyphen_converter(s: str) -> str:
     return ''.join(s)
 
 
-def number_hyphen_reverse(text: str):
+def number_hyphen_reverse(text: str) -> str:
+    """
+    将字符inqi 转换为中划线
+    :param text: 要处理的字符串
+    :return: 处理结果
+    """
     regex = re.compile(fr'''
     (\S+?)# 匹配非空字符（非贪婪）
     ({re.escape('inqi')})
@@ -79,6 +99,11 @@ def number_hyphen_reverse(text: str):
 
     # 定义替换函数
     def replacement(match):
+        """
+        替换处理器
+        :param match: 匹配的match
+        :return: 替换后的结果
+        """
         prefix = match.group(1)
         if prefix in IPA_REVERSE_NUMBER_MAP.keys():
             return ' ' + prefix + ' - '
@@ -99,7 +124,7 @@ def ipa_punctuation_to_other(s: str, target: int) -> str:
     :param target: 目标标点符号类型，值应为 0,1,2,3 (表示 UEY,ULY,UYY,UKY) 中的一个
     :return: 处理结果
     """
-    if target not in [0,1,2,3]:
+    if target not in [0, 1, 2, 3]:
         raise ValueError("Invalid target punctuation type")
     for punctuation in PUNCTUATIONS:
         s = s.replace(punctuation[4], punctuation[target])
@@ -114,7 +139,7 @@ class IPANumberProcessor(Processor):
         :param exclude_after: 数字后缀，有此后缀的数字将被忽略
         :param add_space: 是否在匹配到的数字前后添加空格
         """
-        super().__init__(ProcesClass.IPA, ProcesType.NUMBER,'DefaultIPANumberProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.NUMBER, 'DefaultIPANumberProcessor')
         if exclude_before is None:
             self.exclude_before = ['.', '-']
         else:
@@ -147,7 +172,12 @@ class IPANumberProcessor(Processor):
                                     """,
             re.VERBOSE | re.UNICODE | re.DOTALL)
 
-        def replace(match):
+        def replace(match: re.Match) -> str:
+            """
+            替换匹配到的字符
+            :param match: 匹配的Match
+            :return: 替换结果
+            """
             # 解包捕获组
             prefix_part, number_str, suffix_part = match.groups()
             # 提取实际的前缀和后缀字符（去除断言部分）
@@ -180,7 +210,12 @@ class IPANumberProcessor(Processor):
                                     """,
             re.VERBOSE | re.UNICODE | re.DOTALL)
 
-        def replace(match):
+        def replace(match: re.Match) -> str:
+            """
+            替换匹配到的字符
+            :param match: 匹配的Match
+            :return: 替换结果
+            """
             # 解包捕获组
             prefix_part, number_str, suffix_part = match.groups()
             # 提取实际的前缀和后缀字符（去除断言部分）
@@ -226,13 +261,13 @@ class IPANumberReverseProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.REVERSE | ProcesType.NUMBER,'DefaultIPANumberReverseProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.REVERSE | ProcesType.NUMBER, 'DefaultIPANumberReverseProcessor')
 
-    def process(self, text):
+    def process(self, text) -> str:
         text = self.reverse_float(text)
         return self.reverse_integer(text)
 
-    def reverse_float(self, text: str):
+    def reverse_float(self, text: str) -> str:
         """
         将UYY 的小数转换成浮点数
         :param text: 转换的文本
@@ -303,7 +338,7 @@ class IPANumberReverseProcessor(Processor):
             result.append(str(sum([self.evaluate_subarray(i) for i in self.split_array(pending)])))
         return " ".join(result)
 
-    def split_array(self, arr: list[tuple[int, bool]]):
+    def split_array(self, arr: list[tuple[int, bool]]) -> list[list[tuple[int, bool]]]:
         '''
         吧数字列表分成几个数量级单调递增的部分
         :param arr: 数字列表
@@ -347,7 +382,7 @@ class IPANumberReverseProcessor(Processor):
 
 class IPADateProcessor(Processor):
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.DATE,'DefaultIPADateProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.DATE, 'DefaultIPADateProcessor')
         self.date_regex_map = {
             'iso': {  # 格式1：YYYY-MM-DD
                 'regex_year': r'\d{1,4}',
@@ -374,35 +409,56 @@ class IPADateProcessor(Processor):
 
     def process(self, s: str) -> str:
         def replace_handler(match: re.Match):
+            """
+            替换匹配到的字符
+            :param match: 匹配的Match
+            :return: 替换结果
+            """
             handle = self.date_regex_map[match.lastgroup].get('handler', self.default_handler)
             year, month, day = handle(match.lastgroup, match)
             year_unit = 'jili'
             month_unit = 'ɑjniŋ'
             day_unit = 'kyni'
-            return f"{self.convert_date_number(year)} {year_unit} {self.convert_date_number(month)} {month_unit} {self.convert_date_number(day)} {day_unit}"
+            return f"{self.convert_date_number(year)} {year_unit} {self.convert_date_number(month)} {month_unit}" \
+                   f" {self.convert_date_number(day)} {day_unit}"
 
         return self.mk_regex().sub(replace_handler, s)
 
     @staticmethod
     def convert_date_number(s):
+        """
+        把阿拉伯数转换成维语数
+        :param s: 要转换的文本
+        :return: 转换结果
+        """
         number = int(s)
         uyy_number = int_to_ipa(number)
         return number_hyphen_converter(uyy_number)
 
     def mk_regex(self):
+        """
+        创建正则表达式
+        :return: 正则表达式
+        """
         regex_list = []
         for k, v in self.date_regex_map.items():
-            regex_year = rf'(?P<{k}_year>{v['regex_year']})'
-            regex_month = rf'(?P<{k}_month>{v['regex_month']})'
-            regex_day = rf'(?P<{k}_day>{v['regex_day']})'
+            regex_year = rf"(?P<{k}_year>{v['regex_year']})"
+            regex_month = rf"(?P<{k}_month>{v['regex_month']})"
+            regex_day = rf"(?P<{k}_day>{v['regex_day']})"
             regex_separator = v['regex_separator']
-            regex_str = rf'(?P<{k}>{regex_year}{regex_separator}{regex_month}{regex_separator}{regex_day})'
+            regex_str = rf"(?P<{k}>{regex_year}{regex_separator}{regex_month}{regex_separator}{regex_day})"
             regex_list.append(regex_str)
 
-        return re.compile(rf'(?<!\d)(?:{'|'.join(regex_list)})(?!\d)', flags=re.VERBOSE | re.UNICODE | re.DOTALL)
+        return re.compile(rf"(?<!\d)(?:{'|'.join(regex_list)})(?!\d)", flags=re.VERBOSE | re.UNICODE | re.DOTALL)
 
     @staticmethod
     def default_handler(class_name: str, m: re.Match) -> tuple[str, str, str]:
+        """
+        默认处理器。将匹配到的内容进行替换
+        :param class_name:date_regex_map中的key 如iso,slash,dot
+        :param m: 匹配到的Match
+        :return: 替换结果
+        """
         return m.group(f'{class_name}_year'), m.group(f'{class_name}_month'), m.group(f'{class_name}_day')
 
 
@@ -410,15 +466,27 @@ class IPADateAndNumberReverseProcessor(Processor):
 
     def __init__(self):
         super().__init__(ProcesClass.IPA,
-                         ProcesType.REVERSE | ProcesType.DATE | ProcesType.NUMBER,'DefaultIPADateAndNumberReverseProcessor')
+                         ProcesType.REVERSE | ProcesType.DATE | ProcesType.NUMBER,
+                         'DefaultIPADateAndNumberReverseProcessor')
         self.number_reverse = IPANumberReverseProcessor()
 
     def process(self, text: str, separators: str = '-'):
-        regex = re.compile(fr'''
-                (\d+)(\s*-\s* {re.escape('jili')} \s*)(\d+)(\s*-\s* {re.escape('ɑjniŋ')} \s*)(\d+)(\s*-\s* {re.escape('kyni')} \s*)        # year month day        
-                ''', flags=re.VERBOSE | re.UNICODE | re.DOTALL)
+        """
+        处理日期和数字
+        :param text: 要处理的文本
+        :param separators: 分隔符
+        :return: 处理结果
+        """
+        regex = re.compile(fr"(\d+)(\s*-\s* {re.escape('jili')} \s*)"
+                           fr"(\d+)(\s*-\s* {re.escape('ɑjniŋ')} \s*)"
+                           fr"(\d+)(\s*-\s* {re.escape('kyni')} \s*)", flags=re.VERBOSE | re.UNICODE | re.DOTALL)
 
-        def replacement(match):
+        def replacement(match: re.Match):
+            """
+            替换匹配到的字符
+            :param match: 匹配的Match
+            :return: 替换结果
+            """
             year_num = match.group(1)
             month_num = match.group(3)
             day_num = match.group(5)
@@ -433,18 +501,25 @@ class IPANormalizeProcessor(Processor):
     """
     ipa 没有什么可格式化的，吧有多个读音的统一写成一个就可以
     """
+
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.NORMALIZATION,'DefaultIPANormalizeProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.NORMALIZATION, 'DefaultIPANormalizeProcessor')
 
     def process(self, text: str):
-        return text.replace('æ','ɛ').replace('ɨ','i').replace('v','w')
+        """
+        吧有多个读音的统一写成一个就可以
+        :param text: 要处理的文本
+        :return: 处理结果
+        """
+        return text.replace('æ', 'ɛ').replace('ɨ', 'i').replace('v', 'w')
 
 
 class IPANormalizeReverseProcessor(Processor):
     """ 没什么可做的,这个处理器为了，跟其他处理流程进行兼容的 """
 
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.REVERSE | ProcesType.NORMALIZATION,'DefaultIPANormalizeReverseProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.REVERSE | ProcesType.NORMALIZATION,
+                         'DefaultIPANormalizeReverseProcessor')
 
     def process(self, text: str) -> str:
         """
@@ -456,30 +531,38 @@ class IPANormalizeReverseProcessor(Processor):
 
 
 class IPASymbolsProcessor(Processor):
+    """
+    ipa 符号转换
+    """
+
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.SYMBOL,'DefaultIPASymbolsProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.SYMBOL, 'DefaultIPASymbolsProcessor')
 
     def process(self, text: str) -> str:
+        """
+        符号转换
+        :param text: 要处理的文本
+        :return: 处理结果
+        """
         for k, v in IPA_SYMBOL_MAP.items():
             text = text.replace(k, v)
         return text
 
+
 class IPASymbolsReverseProcessor(Processor):
+    """
+    ipa 符号还原
+    """
+
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.SYMBOL | ProcesType.REVERSE,'DefaultIPASymbolsReverseProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.SYMBOL | ProcesType.REVERSE, 'DefaultIPASymbolsReverseProcessor')
 
     def process(self, text: str) -> str:
-        for k, v in IPA_SYMBOL_MAP.items():
-            text = text.replace(v, k)
-        return text
-
-
-
-class UYYSymbolsReverseProcessor(Processor):
-    def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.SYMBOL | ProcesType.REVERSE,'DefaultUYYSymbolsReverseProcessor')
-
-    def process(self, text: str) -> str:
+        """
+        符号还原
+        :param text: 要处理的文本
+        :return: 处理结果
+        """
         for k, v in IPA_SYMBOL_MAP.items():
             text = text.replace(v, k)
         return text
@@ -491,7 +574,7 @@ class IPAToUYYProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.TO_UYY,'DefaultIPAToUYYProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.TO_UYY, 'DefaultIPAToUYYProcessor')
 
     def process(self, text: str) -> str:
         """
@@ -505,25 +588,31 @@ class IPAToUYYProcessor(Processor):
             result.append(self.convertToUYY(word))
         return ipa_punctuation_to_other(' '.join(result), 2)
 
-    def convertToUYY(self, word: str):
+    @staticmethod
+    def convertToUYY(word: str):
+        """
+        将IPA字符串转换成UYY字符串。
+        :param word: 要转换的文本
+        :return: 处理结果
+        """
         result = []
-        word+=' '+' '  #  添加两个空格
-        prev_char= word[0]
-        index=1
-        while len(word)-1 > index:
+        word += ' ' + ' '  # 添加两个空格
+        prev_char = word[0]
+        index = 1
+        while len(word) - 1 > index:
             forms = IPA_SCRIPTS.get(prev_char + word[index] + word[index + 1], None)
             if forms:
                 result.append(forms['UYY']['other'])
-                prev_char = word[index+2]  # 因为添加了两个空格，因此如果执行到这里说明index+1 不为' ' 因此index+2 必存在
-                index+=3
+                prev_char = word[index + 2]  # 因为添加了两个空格，因此如果执行到这里说明index+1 不为' ' 因此index+2 必存在
+                index += 3
                 continue
             else:
-                forms  = IPA_SCRIPTS.get(prev_char, None)
+                forms = IPA_SCRIPTS.get(prev_char, None)
                 if forms:
                     result.append(forms['UYY']['other'])
                 else:
                     result.append(prev_char)
-                prev_char =  word[index]
+                prev_char = word[index]
             index += 1
         return ''.join(result)
 
@@ -532,8 +621,9 @@ class IPAToUKYProcessor(Processor):
     """
     UYY 转换到 UKY
     """
+
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.TO_UKY,'DefaultIPAToUKYProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.TO_UKY, 'DefaultIPAToUKYProcessor')
 
     def process(self, text: str) -> str:
         """
@@ -548,6 +638,11 @@ class IPAToUKYProcessor(Processor):
         return ipa_punctuation_to_other(' '.join(result), 3)
 
     def convertToUKY(self, word: str):
+        """
+        将UYY字符串转换成UKY字符串。
+        :param word: 要转换的文本
+        :return: 处理结果
+        """
         result = []
         word += ' ' + ' '  # 添加两个空格
         prev_char = word[0]
@@ -576,7 +671,7 @@ class IPAToUEYProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.TO_UEY,'DefaultIPAToUEYProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.TO_UEY, 'DefaultIPAToUEYProcessor')
         self.ipa_divide_syllables_processor = IPADivideSyllablesProcessor()
         self.hemze = '\u0626'
 
@@ -595,9 +690,14 @@ class IPAToUEYProcessor(Processor):
         return ipa_punctuation_to_other(' '.join(result), 0)
 
     def convertToUEY(self, word: list[list[str]]):
+        """
+        将IPA字符串转换成UEY字符串。
+        :param word: 要转换的文本
+        :return: 处理结果
+        """
         result = []
         for s in word:
-            syllable=[]
+            syllable = []
             for c in s:
                 forms = IPA_SCRIPTS.get(c, None)
                 if forms:
@@ -608,13 +708,18 @@ class IPAToUEYProcessor(Processor):
         return ' '.join(result)
 
     @staticmethod
-    def mk_Letter_List(word:str) -> list[str]:
+    def mk_Letter_List(word: str) -> list[str]:
+        """
+        将 Uyghur(维吾尔语) 单词转换成字母列表
+        :param word: 要处理的 Uyghur(维吾尔语) 单词
+        :return: 处理后的 Uyghur(维吾尔语) 单词字母列表
+        """
         result = []
         word += ' ' + ' '  # 添加两个空格
         prev_char = word[0]
         index = 1
         while len(word) - 1 > index:
-            if prev_char + word[index] + word[index + 1] in ['t͡ʃ','d͡ʒ']:
+            if prev_char + word[index] + word[index + 1] in ['t͡ʃ', 'd͡ʒ']:
                 result.append(prev_char + word[index] + word[index + 1])
                 prev_char = word[index + 2]  # 因为添加了两个空格，因此如果执行到这里说明index+1 不为' ' 因此index+2 必存在
                 index += 3
@@ -633,19 +738,21 @@ class IPAToUEYProcessor(Processor):
         """
         result = []
         for i in word_syllables.split():
-            i=self.mk_Letter_List(i)
+            i = self.mk_Letter_List(i)
             if is_vowel(i[0]):
                 result.append([[self.hemze] + i])
             else:
                 result.append(i)
         return result
 
+
 class IPAToULYProcessor(Processor):
     """
     IPA 转换到 ULY
     """
+
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.TO_ULY,'DefaultIPAToULYProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.TO_ULY, 'DefaultIPAToULYProcessor')
         self.ipa_divide_syllables_processor = IPADivideSyllablesProcessor()
         self.right_single_quotation_mark = '\u2019'  # (’,\u2019 ) 分割符
 
@@ -664,21 +771,27 @@ class IPAToULYProcessor(Processor):
         return ipa_punctuation_to_other(' '.join(result), 1)
 
     def convertToULY(self, word: list[list[str]]):
+        """
+        将IPA字符串转换成ULY字符串。
+        :param word: 要转换的文本
+        :return: 处理结果
+        """
         result = []
         for s in word:
             syllable = []
             for c in s:
                 forms = IPA_SCRIPTS.get(c, None)
                 if forms:
-                    l=forms['ULY']['other']
-                    if syllable and syllable[-1][-1]+l in ['gh', 'ng', 'sh', 'zh']:
-                        syllable.append(self.right_single_quotation_mark + l)
+                    current_letter = forms['ULY']['other']
+                    if syllable and syllable[-1][-1] + current_letter in ['gh', 'ng', 'sh', 'zh']:
+                        syllable.append(self.right_single_quotation_mark + current_letter)
                     else:
-                        syllable.append(l)
+                        syllable.append(current_letter)
                 else:
                     syllable.append(c)
             result.append(''.join(syllable))
         return ' '.join(result)
+
     def add_Apostrophe(self, word_syllables: str) -> list[list[str]]:
         """
         将维语单词中的音节开头的元音前面一个音节最后一个字母为辅音，则字母加上 (’,\u2019 ) 隔音字符
@@ -686,9 +799,9 @@ class IPAToULYProcessor(Processor):
         :return: 处理后的 Uyghur(维吾尔语) 单词
         """
         result = []
-        prev_syllables=[]
+        prev_syllables = []
         for i in word_syllables.split():
-            i=self.mk_Letter_List(i)
+            i = self.mk_Letter_List(i)
             if not prev_syllables:
                 prev_syllables = i
                 continue
@@ -701,6 +814,11 @@ class IPAToULYProcessor(Processor):
 
     @staticmethod
     def mk_Letter_List(word: str) -> list[str]:
+        """
+        将 Uyghur(维吾尔语) 单词转换成字母列表
+        :param word: 要处理的 Uyghur(维吾尔语) 单词
+        :return: 处理后的 Uyghur(维吾尔语) 单词字母列表
+        """
         result = []
         word += ' ' + ' '  # 添加两个空格
         prev_char = word[0]
@@ -727,10 +845,9 @@ class IPADivideSyllablesProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.IPA, ProcesType.SYLLABLES,'DefaultIPADivideSyllablesProcessor')
+        super().__init__(ProcesClass.IPA, ProcesType.SYLLABLES, 'DefaultIPADivideSyllablesProcessor')
         self.syllables_form = ['V', 'VC', 'CV', 'CVC', 'VCC', 'CVCC', 'CCV', 'CCVC', 'CCVCC', 'CVV', 'CVVC',
                                'CCCV']
-
 
     def process(self, text: str, split_vowels: bool = True, delimiter: str = ''):
         """
@@ -743,7 +860,7 @@ class IPADivideSyllablesProcessor(Processor):
         """
         syllable_list = []
         for word in text.split():
-            word=self.mk_Letter_List(word)
+            word = self.mk_Letter_List(word)
             # 元音辅音（vowel consonants）二元列表，v 表示元音，c 表示辅音
             v_c_list = []
             for c in word:
@@ -774,14 +891,19 @@ class IPADivideSyllablesProcessor(Processor):
             syllable_list.append(' '.join(block_syllable_list))
         return f' {delimiter} '.join(syllable_list)
 
-    def mk_Letter_List(self,word:str) -> list[str]:
+    def mk_Letter_List(self, word: str) -> list[str]:
+        """
+        将 Uyghur(维吾尔语) 单词转换成字母列表
+        :param word: 要处理的 Uyghur(维吾尔语) 单词
+        :return: 处理后的 Uyghur(维吾尔语) 单词字母列表
+        """
 
         result = []
         word += ' ' + ' '  # 添加两个空格
         prev_char = word[0]
         index = 1
         while len(word) - 1 > index:
-            if prev_char + word[index] + word[index + 1] in ['t͡ʃ','d͡ʒ']:
+            if prev_char + word[index] + word[index + 1] in ['t͡ʃ', 'd͡ʒ']:
                 result.append(prev_char + word[index] + word[index + 1])
                 prev_char = word[index + 2]  # 因为添加了两个空格，因此如果执行到这里说明index+1 不为' ' 因此index+2 必存在
                 index += 3
@@ -829,7 +951,7 @@ class IPADivideSyllablesProcessor(Processor):
         return syllable_list[::-1]
 
     @functools.lru_cache(maxsize=None)
-    def iterateSyllable(self, block: str) -> list[str] | None:
+    def iterateSyllable(self, block: str) -> Union[list[str], None]:
         """
         正向遍历并切分音节
         :param block: VC 块

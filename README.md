@@ -76,10 +76,8 @@ print(f"词根: {analysis.stem}, 词缀: {analysis.suffixes}")
    - [不同形式的维文字母](https://abkai.net/zh/uyghur/uyghur-script/) - UEY,UKY,UYY,ULY,IPA 之间的转换的依据
    - [维吾尔语字母表](https://nk2028.shn.hk/uyghur/alphabet/uyghur-alphabet-zhcn.pdf) - UEY字符链接规范依据
    - [维吾尔语UEY字符与Unicode映射](https://www.ukij.org/fonts/) - UEY字符链接规范依据
+   - [现代维吾尔文音节自动切分方法及其实现](https://docreadh.mbalib.com/doc/pdf/0/0e/0e935ec2f89bfc8e7cabb329960b79da.pdf?auth_key=1752561252-493752d0b8e87d6e4e322f5028662968-0-20e1bcfb836cd3db0e6088ce31208d05) - 音节切分算法
 
-2. **学术研究**
-   - 《现代维吾尔语形态分析研究》- 词根提取算法理论基础
-   - 《多语言混合文本处理技术》- 跨语言音译实现参考
 
 ## 📜 许可证
 MIT License © 2024 Uyghur Toolkit Project

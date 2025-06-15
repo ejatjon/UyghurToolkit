@@ -1,5 +1,14 @@
+"""
+该模块包含拉丁维文（ULY）相关的文本处理器，包括：
+- 数字/日期转换处理器
+- 符号转换处理器
+- 音节划分处理器
+- 转换到IPA,UEY,UKY,UYY字母的转换处理器
+等核心处理功能
+"""
 import functools
 import re
+from typing import Union
 
 from uyghur_toolkit.processing.ProcesClass import ProcesClass
 from uyghur_toolkit.processing.ProcesType import ProcesType
@@ -12,6 +21,11 @@ from uyghur_toolkit.utils.number_tools import decompose_number, decimal_number, 
 
 
 def is_vowel(s: str) -> bool:
+    """
+    判断给定的字符是否是UYY的元音字母
+    :param s: 字符
+    :return: 是否是元音字母
+    """
     if s in ULY_VOWELS:
         return True
     return False
@@ -71,6 +85,11 @@ def number_hyphen_converter(s: str) -> str:
 
 
 def number_hyphen_reverse(text: str):
+    """
+    移除数字前的中划线（-），text是一个维语
+    :param text: 一个维语
+    :return: 替换后的字符串
+    """
     regex = re.compile(fr'''
     (\S+?)# 匹配非空字符（非贪婪）
     ({re.escape('inchi')})
@@ -79,6 +98,11 @@ def number_hyphen_reverse(text: str):
 
     # 定义替换函数
     def replacement(match):
+        """
+        替换函数
+        :param match: 匹配对象
+        :return: 替换后的字符串
+        """
         prefix = match.group(1)
         if prefix in ULY_REVERSE_NUMBER_MAP.keys():
             return ' ' + prefix + ' - '
@@ -107,6 +131,10 @@ def uly_punctuation_to_other(s: str, target: int) -> str:
 
 
 class ULYNumberProcessor(Processor):
+    """
+    将 ULY 中的数字转换为 UYY 中的数字
+    """
+
     def __init__(self, exclude_before: list[str] = None, exclude_after: list[str] = None, add_space: bool = True):
         """
         初始化参数
@@ -114,7 +142,7 @@ class ULYNumberProcessor(Processor):
         :param exclude_after: 数字后缀，有此后缀的数字将被忽略
         :param add_space: 是否在匹配到的数字前后添加空格
         """
-        super().__init__(ProcesClass.ULY, ProcesType.NUMBER,'DefaultULYNumberProcessor')
+        super().__init__(ProcesClass.ULY, ProcesType.NUMBER, 'DefaultULYNumberProcessor')
         if exclude_before is None:
             self.exclude_before = ['.', '-']
         else:
@@ -148,6 +176,11 @@ class ULYNumberProcessor(Processor):
             re.VERBOSE | re.UNICODE | re.DOTALL)
 
         def replace(match):
+            """
+            替换匹配项
+            :param match: 匹配项
+            :return: 替换后的结果
+            """
             # 解包捕获组
             prefix_part, number_str, suffix_part = match.groups()
             # 提取实际的前缀和后缀字符（去除断言部分）
@@ -181,6 +214,11 @@ class ULYNumberProcessor(Processor):
             re.VERBOSE | re.UNICODE | re.DOTALL)
 
         def replace(match):
+            """
+            替换匹配项
+            :param match: 匹配项
+            :return: 替换后的结果
+            """
             # 解包捕获组
             prefix_part, number_str, suffix_part = match.groups()
             # 提取实际的前缀和后缀字符（去除断言部分）
@@ -347,7 +385,7 @@ class ULYNumberReverseProcessor(Processor):
 
 class ULYDateProcessor(Processor):
     def __init__(self):
-        super().__init__(ProcesClass.ULY, ProcesType.DATE,'DefaultULYDateProcessor')
+        super().__init__(ProcesClass.ULY, ProcesType.DATE, 'DefaultULYDateProcessor')
         self.date_regex_map = {
             'iso': {  # 格式1：YYYY-MM-DD
                 'regex_year': r'\d{1,4}',
@@ -374,51 +412,83 @@ class ULYDateProcessor(Processor):
 
     def process(self, s: str) -> str:
         def replace_handler(match: re.Match):
+            """
+            替换处理函数
+            :param match: 匹配对象
+            :return: 替换后的字符串
+            """
             handle = self.date_regex_map[match.lastgroup].get('handler', self.default_handler)
             year, month, day = handle(match.lastgroup, match)
             year_unit = 'yili'
             month_unit = 'ayning'
             day_unit = 'küni'
-            return f"{self.convert_date_number(year)} {year_unit} {self.convert_date_number(month)} {month_unit} {self.convert_date_number(day)} {day_unit}"
+            return f"{self.convert_date_number(year)} {year_unit} {self.convert_date_number(month)}"\
+                   f" {month_unit} {self.convert_date_number(day)} {day_unit}"
 
         return self.mk_regex().sub(replace_handler, s)
 
     @staticmethod
     def convert_date_number(s):
+        """
+        将数字转换成 ULY
+        :param s: 数字
+        :return: ULY
+        """
         number = int(s)
         uly_number = int_to_uly(number)
         return number_hyphen_converter(uly_number)
 
     def mk_regex(self):
+        """
+        创建正则
+        :return: 正则
+        """
         regex_list = []
         for k, v in self.date_regex_map.items():
-            regex_year = rf'(?P<{k}_year>{v['regex_year']})'
-            regex_month = rf'(?P<{k}_month>{v['regex_month']})'
-            regex_day = rf'(?P<{k}_day>{v['regex_day']})'
+            regex_year = rf"(?P<{k}_year>{v['regex_year']})"
+            regex_month = rf"(?P<{k}_month>{v['regex_month']})"
+            regex_day = rf"(?P<{k}_day>{v['regex_day']})"
             regex_separator = v['regex_separator']
-            regex_str = rf'(?P<{k}>{regex_year}{regex_separator}{regex_month}{regex_separator}{regex_day})'
+            regex_str = rf"(?P<{k}>{regex_year}{regex_separator}{regex_month}{regex_separator}{regex_day})"
             regex_list.append(regex_str)
 
         return re.compile(rf'(?<!\d)(?:{'|'.join(regex_list)})(?!\d)', flags=re.VERBOSE | re.UNICODE | re.DOTALL)
 
     @staticmethod
     def default_handler(class_name: str, m: re.Match) -> tuple[str, str, str]:
+        """
+        默认处理函数
+        :param class_name: 处理器类名
+        :param m: 匹配结果
+        :return: 处理结果
+        """
         return m.group(f'{class_name}_year'), m.group(f'{class_name}_month'), m.group(f'{class_name}_day')
 
 
 class ULYDateAndNumberReverseProcessor(Processor):
+    """
+    还原日期和数字
+    """
 
     def __init__(self):
         super().__init__(ProcesClass.ULY,
-                         ProcesType.REVERSE | ProcesType.DATE | ProcesType.NUMBER, 'DefaultULYDateAndNumberReverseProcessor')
+                         ProcesType.REVERSE | ProcesType.DATE | ProcesType.NUMBER,
+                         'DefaultULYDateAndNumberReverseProcessor')
         self.number_reverse = ULYNumberReverseProcessor()
 
     def process(self, text: str, separators: str = '-'):
-        regex = re.compile(fr'''
-                (\d+)(\s*-\s* {re.escape('yili')} \s*)(\d+)(\s*-\s* {re.escape('ayning')} \s*)(\d+)(\s*-\s* {re.escape('küni')} \s*)        # year month day        
-                ''', flags=re.VERBOSE | re.UNICODE | re.DOTALL)
+        regex = re.compile(
+            fr"(\d+)(\s*-\s* {re.escape('yili')} \s*)"
+            fr"(\d+)(\s*-\s* {re.escape('ayning')} \s*)"
+            fr"(\d+)(\s*-\s* {re.escape('küni')} \s*)",
+            flags=re.VERBOSE | re.UNICODE | re.DOTALL)
 
         def replacement(match):
+            """
+            替换函数
+            :param match: 匹配对象
+            :return: 替换后的字符串
+            """
             year_num = match.group(1)
             month_num = match.group(3)
             day_num = match.group(5)
@@ -440,7 +510,8 @@ class ULYNormalizeProcessor(Processor):
 class ULYNormalizeReverseProcessor(Processor):
 
     def __init__(self):
-        super().__init__(ProcesClass.ULY, ProcesType.REVERSE | ProcesType.NORMALIZATION, "DefaultULYNormalizeReverseProcessor")
+        super().__init__(ProcesClass.ULY, ProcesType.REVERSE | ProcesType.NORMALIZATION,
+                         "DefaultULYNormalizeReverseProcessor")
 
     def process(self, text: str) -> str:
         """
@@ -493,6 +564,11 @@ class ULYToUYYProcessor(Processor):
         return uly_punctuation_to_other(' '.join(result), 2)
 
     def convertToUYY(self, word: str):
+        """
+        将ULY字符串转换成UYY字符串。
+        :param word: 要转换的文本
+        :return: 处理结果
+        """
         word = word.split(self.right_single_quotation_mark)
         result = []
         for substr in word:
@@ -534,6 +610,11 @@ class ULYToIPAProcessor(Processor):
         return uly_punctuation_to_other(' '.join(result), 4)
 
     def convertToIPA(self, word: str):
+        """
+        将ULY字符串转换成IPA字符串。
+        :param word: 要转换的文本
+        :return: 处理结果
+        """
         word = word.split(self.right_single_quotation_mark)
         result = []
         for substr in word:
@@ -575,6 +656,11 @@ class ULYToUKYProcessor(Processor):
         return uly_punctuation_to_other(' '.join(result), 3)
 
     def convertToUKY(self, word: str):
+        """
+        将ULY字符串转换成UKY字符串。
+        :param word: 要转换的文本
+        :return: 处理结果
+        """
         word = word.split(self.right_single_quotation_mark)
         result = []
         for substr in word:
@@ -620,6 +706,11 @@ class ULYToUEYProcessor(Processor):
         return uly_punctuation_to_other(' '.join(result), 0)
 
     def convertToUEY(self, word: str):
+        """
+        将ULY文字转换为UEY文字
+        :param word:
+        :return:
+        """
         word = word.split(self.right_single_quotation_mark)
         result = []
         for substr in word:
@@ -668,7 +759,7 @@ class ULYDivideSyllablesProcessor(Processor):
     """
 
     def __init__(self):
-        super().__init__(ProcesClass.ULY, ProcesType.SYLLABLES,'DefaultULYDivideSyllablesProcessor')
+        super().__init__(ProcesClass.ULY, ProcesType.SYLLABLES, 'DefaultULYDivideSyllablesProcessor')
         self.syllables_form = ['V', 'VC', 'CV', 'CVC', 'VCC', 'CVCC', 'CCV', 'CCVC', 'CCVCC', 'CVV', 'CVVC',
                                'CCCV']
         self.right_single_quotation_mark = '\u2019'  # (’,\u2019 ) 分割符
@@ -699,7 +790,7 @@ class ULYDivideSyllablesProcessor(Processor):
                 if not block:
                     continue
                 # 元音辅音（vowel consonants）二元列表，v 表示元音，c 表示辅音
-                block=self.mk_Letter_List(block)
+                block = self.mk_Letter_List(block)
                 v_c_list = []
                 for c in block:
                     if is_vowel(c):
@@ -749,14 +840,18 @@ class ULYDivideSyllablesProcessor(Processor):
 
         return sub_strs
 
-    def mk_Letter_List(self,word:str) -> list[str]:
-
+    def mk_Letter_List(self, word: str) -> list[str]:
+        """
+        创建一个包含所有字母的列表
+        :param word: 输入的词
+        :return: 一个包含所有字母的列表
+        """
         result = []
         word += ' ' + ' '  # 添加两个空格
         prev_char = word[0]
         index = 1
         while len(word) - 1 > index:
-            if prev_char + word[index] in ['zh','gh','sh','ng']:
+            if prev_char + word[index] in ['zh', 'gh', 'sh', 'ng']:
                 result.append(prev_char + word[index])
                 prev_char = word[index + 1]  # 因为添加了两个空格，因此如果执行到这里说明index+1 不为' ' 因此index+2 必存在
                 index += 2
@@ -766,7 +861,6 @@ class ULYDivideSyllablesProcessor(Processor):
                 prev_char = word[index]
             index += 1
         return result
-
 
     @staticmethod
     def reverseIterateSyllable(v_c_list: list[str], split_vowels: bool) -> list[str]:
@@ -805,7 +899,7 @@ class ULYDivideSyllablesProcessor(Processor):
         return syllable_list[::-1]
 
     @functools.lru_cache(maxsize=None)
-    def iterateSyllable(self, block: str) -> list[str] | None:
+    def iterateSyllable(self, block: str) -> Union[list[str], None]:
         """
         正向遍历并切分音节
         :param block: VC 块
